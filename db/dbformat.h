@@ -60,7 +60,6 @@ enum ValueType { kTypeDeletion = 0x0, kTypeValue = 0x1 };
 // ValueType, not the lowest).
 static const ValueType kValueTypeForSeek = kTypeValue;
 
-typedef uint64_t SequenceNumber;
 
 // We leave eight bits empty at the bottom so a type and sequence#
 // can be packed together into 64-bits.

@@ -11,6 +11,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "db/builder.h"
 #include "db/db_iter.h"
@@ -1112,7 +1113,7 @@ int64_t DBImpl::TEST_MaxNextLevelOverlappingBytes() {
   return versions_->MaxNextLevelOverlappingBytes();
 }
 
-Status DBImpl::Get(const ReadOptions& options, const Slice& key,
+std::pair<SequenceNumber, Status> DBImpl::GetSequence(const ReadOptions& options, const Slice& key,
                    std::string* value) {
   Status s;
   MutexLock l(&mutex_);
@@ -1156,7 +1157,7 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
   mem->Unref();
   if (imm != nullptr) imm->Unref();
   current->Unref();
-  return s;
+  return {snapshot, s};
 }
 
 Iterator* DBImpl::NewIterator(const ReadOptions& options) {
@@ -1189,15 +1190,15 @@ void DBImpl::ReleaseSnapshot(const Snapshot* snapshot) {
 }
 
 // Convenience methods
-Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-  return DB::Put(o, key, val);
+std::pair<SequenceNumber, Status> DBImpl::PutSequence(const WriteOptions& o, const Slice& key, const Slice& val) {
+  return DB::PutSequence(o, key, val);
 }
 
-Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
-  return DB::Delete(options, key);
+std::pair<SequenceNumber, Status> DBImpl::DeleteSequence(const WriteOptions& options, const Slice& key) {
+  return DB::DeleteSequence(options, key);
 }
 
-Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
+std::pair<SequenceNumber, Status> DBImpl::WriteSequence(const WriteOptions& options, WriteBatch* updates) {
   Writer w(&mutex_);
   w.batch = updates;
   w.sync = options.sync;
@@ -1209,13 +1210,14 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
     w.cv.Wait();
   }
   if (w.done) {
-    return w.status;
+    return {0, w.status};
   }
 
   // May temporarily unlock and wait.
   Status status = MakeRoomForWrite(updates == nullptr);
   uint64_t last_sequence = versions_->LastSequence();
   Writer* last_writer = &w;
+  SequenceNumber resultNumber = 0;
   if (status.ok() && updates != nullptr) {  // nullptr batch is for compactions
     WriteBatch* write_batch = BuildBatchGroup(&last_writer);
     WriteBatchInternal::SetSequence(write_batch, last_sequence + 1);
@@ -1248,6 +1250,7 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
     }
     if (write_batch == tmp_batch_) tmp_batch_->Clear();
 
+    resultNumber = WriteBatchInternal::Sequence(write_batch);
     versions_->SetLastSequence(last_sequence);
   }
 
@@ -1267,7 +1270,25 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
     writers_.front()->cv.Signal();
   }
 
-  return status;
+  return {resultNumber, status};
+}
+
+Status DBImpl::Put(const WriteOptions& options, const Slice& key,
+           const Slice& value) {
+  return PutSequence(options, key, value).second;
+}
+
+Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
+  return DeleteSequence(options, key).second;
+}
+
+Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
+  return WriteSequence(options, updates).second;
+}
+
+Status DBImpl::Get(const ReadOptions& options, const Slice& key,
+           std::string* value) {
+  return GetSequence(options, key, value).second;
 }
 
 // REQUIRES: Writer list must be non-empty
@@ -1480,10 +1501,22 @@ void DBImpl::GetApproximateSizes(const Range* range, int n, uint64_t* sizes) {
 
 // Default implementations of convenience methods that subclasses of DB
 // can call if they wish
+std::pair<SequenceNumber, Status> DB::PutSequence(const WriteOptions& opt, const Slice& key, const Slice& value) {
+  WriteBatch batch;
+  batch.Put(key, value);
+  return {WriteBatchInternal::Sequence(&batch), Write(opt, &batch)};
+}
+
 Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
   WriteBatch batch;
   batch.Put(key, value);
   return Write(opt, &batch);
+}
+
+std::pair<SequenceNumber, Status> DB::DeleteSequence(const WriteOptions& opt, const Slice& key) {
+  WriteBatch batch;
+  batch.Delete(key);
+  return {WriteBatchInternal::Sequence(&batch), Write(opt, &batch)};
 }
 
 Status DB::Delete(const WriteOptions& opt, const Slice& key) {

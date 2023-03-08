@@ -2119,6 +2119,14 @@ class ModelDB : public DB {
     assert(false);  // Not implemented
     return Status::NotFound(key);
   }
+
+  std::pair<SequenceNumber, Status> PutSequence(const WriteOptions&, const Slice& key,
+                                                const Slice& value) { return {0, Status::OK()}; };
+  std::pair<SequenceNumber, Status> DeleteSequence(const WriteOptions&, const Slice& key) { return {0, Status::OK()}; };
+  std::pair<SequenceNumber, Status> WriteSequence(const WriteOptions& options, WriteBatch* updates) { return {0, Status::OK()}; };
+  std::pair<SequenceNumber, Status> GetSequence(const ReadOptions& options, const Slice& key,
+                                                std::string* value) { return {0, Status::OK()}; };
+
   Iterator* NewIterator(const ReadOptions& options) override {
     if (options.snapshot == nullptr) {
       KVMap* saved = new KVMap;

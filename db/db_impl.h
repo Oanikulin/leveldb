@@ -42,6 +42,14 @@ class DBImpl : public DB {
   Status Write(const WriteOptions& options, WriteBatch* updates) override;
   Status Get(const ReadOptions& options, const Slice& key,
              std::string* value) override;
+
+  std::pair<SequenceNumber, Status> PutSequence(const WriteOptions&, const Slice& key,
+             const Slice& value) override;
+  std::pair<SequenceNumber, Status> DeleteSequence(const WriteOptions&, const Slice& key) override;
+  std::pair<SequenceNumber, Status> WriteSequence(const WriteOptions& options, WriteBatch* updates) override;
+  std::pair<SequenceNumber, Status> GetSequence(const ReadOptions& options, const Slice& key,
+             std::string* value) override;
+
   Iterator* NewIterator(const ReadOptions&) override;
   const Snapshot* GetSnapshot() override;
   void ReleaseSnapshot(const Snapshot* snapshot) override;
