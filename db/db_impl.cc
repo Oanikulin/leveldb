@@ -1504,7 +1504,7 @@ void DBImpl::GetApproximateSizes(const Range* range, int n, uint64_t* sizes) {
 std::pair<SequenceNumber, Status> DB::PutSequence(const WriteOptions& opt, const Slice& key, const Slice& value) {
   WriteBatch batch;
   batch.Put(key, value);
-  return {WriteBatchInternal::Sequence(&batch), Write(opt, &batch)};
+  return WriteSequence(opt, &batch);
 }
 
 Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
@@ -1516,7 +1516,7 @@ Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
 std::pair<SequenceNumber, Status> DB::DeleteSequence(const WriteOptions& opt, const Slice& key) {
   WriteBatch batch;
   batch.Delete(key);
-  return {WriteBatchInternal::Sequence(&batch), Write(opt, &batch)};
+  return WriteSequence(opt, &batch);
 }
 
 Status DB::Delete(const WriteOptions& opt, const Slice& key) {
