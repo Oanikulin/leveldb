@@ -1210,7 +1210,7 @@ std::pair<SequenceNumber, Status> DBImpl::WriteSequence(const WriteOptions& opti
     w.cv.Wait();
   }
   if (w.done) {
-    return {0, w.status};
+    return {WriteBatchInternal::Sequence(w.batch), w.status};
   }
 
   // May temporarily unlock and wait.
