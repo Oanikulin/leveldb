@@ -1205,12 +1205,13 @@ std::pair<SequenceNumber, Status> DBImpl::WriteSequence(const WriteOptions& opti
   w.done = false;
 
   MutexLock l(&mutex_);
+  uint64_t request_sequence = versions_->LastSequence() + writers_.size();
   writers_.push_back(&w);
   while (!w.done && &w != writers_.front()) {
     w.cv.Wait();
   }
   if (w.done) {
-    return {WriteBatchInternal::Sequence(w.batch), w.status};
+    return {request_sequence, w.status};
   }
 
   // May temporarily unlock and wait.
@@ -1270,7 +1271,7 @@ std::pair<SequenceNumber, Status> DBImpl::WriteSequence(const WriteOptions& opti
     writers_.front()->cv.Signal();
   }
 
-  return {resultNumber, status};
+  return {request_sequence, status};
 }
 
 Status DBImpl::Put(const WriteOptions& options, const Slice& key,
